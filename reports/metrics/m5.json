@@ -1,0 +1,84 @@
+{
+  "module": "M5",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "models": [
+    {
+      "name": "m1_parts_van_loadout",
+      "task": "repeat_visit_reduction",
+      "primary_metric": {
+        "name": "accuracy",
+        "value": 0.9578
+      },
+      "metrics": {
+        "hamming_loss": 0.0422
+      },
+      "baseline": {
+        "name": "no_ml_van_stock",
+        "metrics": {
+          "hamming_loss": 0.0591
+        }
+      },
+      "n_train": 20692,
+      "n_val": 3628,
+      "n_test": 3604,
+      "features": [
+        "complaint_text",
+        "predicted_fault"
+      ],
+      "best_params": {
+        "top_k_parts": 6
+      }
+    },
+    {
+      "name": "m3b_dynamic_quote_optimiser",
+      "task": "expected_profit_maximisation",
+      "primary_metric": {
+        "name": "mae",
+        "value": 429.2717
+      },
+      "metrics": {
+        "rmse": 46.3419
+      },
+      "baseline": {
+        "name": "flat_cost_plus_30pct",
+        "metrics": {
+          "mae": 293.3347
+        }
+      },
+      "n_train": 0,
+      "n_val": 0,
+      "n_test": 8313,
+      "features": [
+        "cost_inr",
+        "quote_ratio",
+        "urgency",
+        "response_time_min",
+        "source_channel"
+      ],
+      "best_params": {
+        "step_inr": 5
+      }
+    }
+  ],
+  "impact_summary": {
+    "repeat_rate_baseline": 0.0591,
+    "repeat_rate_ml": 0.0422,
+    "parts_coverage_rate": 0.8493,
+    "profit_per_lead_baseline": 293.33,
+    "profit_per_lead_ml": 429.27,
+    "profit_lift_pct": 46.34,
+    "top30_conv_random": 1070,
+    "top30_conv_ml": 1765,
+    "top30_conv_lift_pct": 64.95,
+    "tech_weeks_mismatch_baseline": 22,
+    "tech_weeks_mismatch_ml": 18
+  },
+  "assumptions": [
+    "Repeat visits: Loaded trained M1 fault & parts pipelines. Jobs where all true parts_used fall within the predicted top-6 van kit avoid part-shortage repeat visits (38% of total repeats attributed to missing van parts).",
+    "Quote optimisation: Evaluated across all held-out test leads comparing flat Cost x 1.30 against M3B grid-optimised pricing over [1.0x, 2.6x] cost.",
+    "Lead scoring: Ranked test leads by calibrated conversion probability formula (models/m3a_lead.joblib not yet present).",
+    "Staffing mismatch: Sum of absolute weekly technician shortages and idle surpluses across the 12 test weeks (starting 2025-10-06) across all 3 branches compared against constant 2025 H1 average staffing."
+  ],
+  "notes": "End-to-end business impact simulation evaluated on the Q4 2025 test split (after 2025-09-30) comparing ML-assisted triage, dynamic quoting, lead prioritization, and demand staffing against static franchise heuristics."
+}
