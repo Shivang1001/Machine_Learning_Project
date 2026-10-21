@@ -1,5 +1,6 @@
-"""Synthetic data generator implementing Voltline Contract v1.0 specifications."""
+"""M0A: High-performance synthetic data generator implementing Voltline Contract v1.0 specifications."""
 
+import datetime
 import hashlib
 from pathlib import Path
 import numpy as np
@@ -15,34 +16,21 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 RNG = np.random.default_rng(RANDOM_STATE)
 
 PART_UNIT_PRICES = {
-    "copper_wire": 420,
-    "connectors_tape": 90,
-    "switch_socket": 180,
-    "mcb": 380,
-    "rccb": 1100,
-    "cable_lugs": 60,
-    "run_capacitor": 520,
-    "contactor": 650,
-    "isolator": 300,
-    "thermostat": 350,
-    "heating_element": 700,
-    "geyser_plug": 150,
-    "fan_capacitor": 60,
-    "regulator": 220,
-    "bearing_set": 180,
-    "battery_terminal": 200,
-    "fuse": 50,
-    "led_driver": 250
+    "copper_wire": 420, "connectors_tape": 90, "switch_socket": 180, "mcb": 380,
+    "rccb": 1100, "cable_lugs": 60, "run_capacitor": 520, "contactor": 650,
+    "isolator": 300, "thermostat": 350, "heating_element": 700, "geyser_plug": 150,
+    "fan_capacitor": 60, "regulator": 220, "bearing_set": 180, "battery_terminal": 200,
+    "fuse": 50, "led_driver": 250
 }
 
 FAULT_PART_PROBS = {
-    "wiring": {"copper_wire": 0.80, "connectors_tape": 0.70, "switch_socket": 0.45, "mcb": 0.25},
-    "mcb": {"mcb": 0.70, "rccb": 0.30, "cable_lugs": 0.50},
-    "ac": {"run_capacitor": 0.55, "contactor": 0.30, "isolator": 0.35},
-    "geyser": {"thermostat": 0.60, "heating_element": 0.45, "geyser_plug": 0.30},
-    "fan": {"fan_capacitor": 0.60, "regulator": 0.40, "bearing_set": 0.30},
-    "inverter": {"battery_terminal": 0.40, "fuse": 0.50},
-    "light": {"switch_socket": 0.60, "connectors_tape": 0.40, "led_driver": 0.30}
+    "wiring": [("copper_wire", 0.80), ("connectors_tape", 0.70), ("switch_socket", 0.45), ("mcb", 0.25)],
+    "mcb": [("mcb", 0.70), ("rccb", 0.30), ("cable_lugs", 0.50)],
+    "ac": [("run_capacitor", 0.55), ("contactor", 0.30), ("isolator", 0.35)],
+    "geyser": [("thermostat", 0.60), ("heating_element", 0.45), ("geyser_plug", 0.30)],
+    "fan": [("fan_capacitor", 0.60), ("regulator", 0.40), ("bearing_set", 0.30)],
+    "inverter": [("battery_terminal", 0.40), ("fuse", 0.50)],
+    "light": [("switch_socket", 0.60), ("connectors_tape", 0.40), ("led_driver", 0.30)]
 }
 
 COMPLAINT_TEMPLATES = {
@@ -206,18 +194,25 @@ DANGER_WORDS = ["spark", "sparking", "smoke", "burning smell", "jalne ki smell",
 POWER_LOSS_WORDS = ["light nahi hai", "no power"]
 MILD_WORDS = ["flickering", "slow", "noise"]
 
+TEMPLATE_METADATA = {}
+for f, tmpls in COMPLAINT_TEMPLATES.items():
+    TEMPLATE_METADATA[f] = []
+    for tmpl in tmpls:
+        low = tmpl.lower()
+        d_cnt = sum(1 for w in DANGER_WORDS if w in low)
+        p_loss = 1 if any(w in low for w in POWER_LOSS_WORDS) else 0
+        m_only = 1 if (any(w in low for w in MILD_WORDS) and d_cnt == 0 and p_loss == 0) else 0
+        TEMPLATE_METADATA[f].append((tmpl, d_cnt, p_loss, m_only))
 
-def inject_typo(text: str) -> str:
-    """Randomly swaps or drops one character with 8% probability per word."""
+
+def fast_inject_typo(text: str, rng) -> str:
     words = text.split()
-    new_words = []
-    for w in words:
-        if len(w) > 3 and RNG.random() < 0.08:
-            idx = RNG.integers(1, len(w) - 1)
-            char = chr(RNG.integers(97, 122))
-            w = w[:idx] + char + w[idx + 1:]
-        new_words.append(w)
-    return " ".join(new_words)
+    for idx, w in enumerate(words):
+        if len(w) > 3 and rng.random() < 0.08:
+            ch_idx = rng.integers(1, len(w) - 1)
+            char = chr(rng.integers(97, 122))
+            words[idx] = w[:ch_idx] + char + w[ch_idx + 1:]
+    return " ".join(words)
 
 
 def generate_all():
@@ -243,6 +238,8 @@ def generate_all():
             t_id += 1
     technicians_df = pd.DataFrame(tech_data)
     technicians_df.sort_values("tech_id").to_csv(OUT_DIR / "technicians.csv", index=False)
+    branch_techs = technicians_df.groupby("branch_id")["tech_id"].apply(list).to_dict()
+    tech_exp_map = technicians_df.set_index("tech_id")["experience_years"].to_dict()
 
     # 3. Weather
     date_range = pd.date_range(DATA_START, DATA_END, freq="D")
@@ -276,194 +273,153 @@ def generate_all():
     weather_df = pd.DataFrame(weather_data)
     weather_df.sort_values(["branch_id", "date"]).to_csv(OUT_DIR / "weather.csv", index=False)
 
-    # 4. Weekly Job Demand Distribution to hit target ~26,500 jobs
-    base_jobs = {"NCR": 112, "PUN": 78, "JAI": 64}
-    season_mult = {
-        1: 0.85, 2: 0.85, 3: 0.95, 4: 1.10, 5: 1.20, 6: 1.15,
-        7: 1.10, 8: 1.10, 9: 1.00, 10: 0.95, 11: 1.05, 12: 0.90
-    }
-
-    weekly_demand = []
-    cur_monday = pd.Timestamp("2024-01-01")
-    while cur_monday <= pd.Timestamp(DATA_END):
-        week_fest = any(abs((cur_monday + pd.Timedelta(days=d) - fest).days) <= 1
-                        for d in range(7) for fest in festivals)
-        f_mult = 1.2 if week_fest else 1.0
-        m_mult = season_mult[cur_monday.month]
-
-        for b in BRANCHES:
-            lam = base_jobs[b] * m_mult * f_mult
-            n_jobs = RNG.poisson(lam)
-            weekly_demand.append((cur_monday, b, n_jobs))
-        cur_monday += pd.Timedelta(days=7)
-
-    # Convert demand to jobs target per branch & day
-    total_target_jobs = sum(x[2] for x in weekly_demand)
-    total_target_leads = int(total_target_jobs / 0.375)
-
-    # 5. Customers
-    # 70% 1 job, 30% 2-8 jobs
-    n_customers = int(total_target_jobs * 0.72)
-    cust_data = []
+    # 4. Customers
+    n_customers = 18000
     p_weights = [0.55, 0.30, 0.15]
     b_weights = [0.44, 0.31, 0.25]
+    cust_branches = RNG.choice(BRANCHES, size=n_customers, p=b_weights)
+    cust_premises = RNG.choice(PREMISES, size=n_customers, p=p_weights)
+    has_missing_age = RNG.random(n_customers) < 0.02
+    raw_ages = np.clip(np.round(RNG.normal(18, 10, n_customers)), 0, 50)
+    s_days = RNG.integers(0, 730, n_customers)
 
-    for c_idx in range(1, n_customers + 1):
-        b = RNG.choice(BRANCHES, p=b_weights)
-        prem = RNG.choice(PREMISES, p=p_weights)
-        if RNG.random() < 0.02:
-            age = np.nan
-        else:
-            age = int(np.clip(round(RNG.normal(18, 10)), 0, 50))
-        s_day = RNG.integers(0, 730)
-        s_date = (pd.Timestamp("2024-01-01") + pd.Timedelta(days=int(s_day))).strftime("%Y-%m-%d")
-
+    cust_data = []
+    base_date = pd.Timestamp("2024-01-01")
+    for i in range(n_customers):
+        age = np.nan if has_missing_age[i] else int(raw_ages[i])
+        s_date = (base_date + pd.Timedelta(days=int(s_days[i]))).strftime("%Y-%m-%d")
         cust_data.append({
-            "customer_id": f"C-{c_idx:05d}",
-            "branch_id": b,
-            "premises_type": prem,
+            "customer_id": f"C-{i+1:05d}",
+            "branch_id": cust_branches[i],
+            "premises_type": cust_premises[i],
             "house_age_years": age,
             "signup_date": s_date
         })
 
     customers_df = pd.DataFrame(cust_data)
     customers_df.sort_values("customer_id").to_csv(OUT_DIR / "customers.csv", index=False)
-    cust_dict = {c["customer_id"]: c for c in cust_data}
-    branch_techs = technicians_df.groupby("branch_id")["tech_id"].apply(list).to_dict()
-    tech_exp_map = technicians_df.set_index("tech_id")["experience_years"].to_dict()
 
-    # 6. Rate Card Precomputation
+    # 5. Rate Card Precomputation
     base_hours = {"wiring": 2.6, "mcb": 1.4, "ac": 2.2, "geyser": 1.6, "fan": 1.1, "inverter": 1.8, "light": 0.8}
     premises_factor = {"apartment": 1.0, "house": 1.15, "shop_office": 1.25}
 
     rate_card_rows = []
     for f in FAULTS:
         for p in PREMISES:
-            expected_parts_cost = sum(
-                prob * PART_UNIT_PRICES[part]
-                for part, prob in FAULT_PART_PROBS[f].items()
-            )
+            expected_parts_cost = sum(prob * PART_UNIT_PRICES[part] for part, prob in FAULT_PART_PROBS[f])
             sim_dur = base_hours[f] * (1.0 + 0.012 * 8.0) * (1.2 - 0.035 * 7.0) * premises_factor[p]
             sim_cost = 380.0 * sim_dur + expected_parts_cost + 199.0
             base_p = float(round(1.55 * sim_cost / 10.0) * 10)
-            rate_card_rows.append({
-                "fault_category": f,
-                "premises_type": p,
-                "base_price_inr": base_p
-            })
+            rate_card_rows.append({"fault_category": f, "premises_type": p, "base_price_inr": base_p})
     rate_card_df = pd.DataFrame(rate_card_rows)
     rate_card_df.sort_values(["fault_category", "premises_type"]).to_csv(OUT_DIR / "rate_card.csv", index=False)
     rate_card_lookup = rate_card_df.set_index(["fault_category", "premises_type"])["base_price_inr"].to_dict()
 
-    # 7. Generate Leads & Jobs
-    lead_rows = []
-    job_rows = []
+    # 6. Pre-Sampling for High-Speed Leads & Jobs Generation
+    total_target_leads = 65000
 
-    channel_probs = [0.30, 0.20, 0.20, 0.20, 0.10]
-    channel_mults = {"google_ads": 0.9, "referral": 1.2, "website": 1.0, "whatsapp": 1.1, "walk_in": 1.3}
-    fault_base_prob = {"wiring": 0.16, "mcb": 0.18, "ac": 0.17, "geyser": 0.12, "fan": 0.13, "inverter": 0.10, "light": 0.14}
-
-    cust_ids = list(cust_dict.keys())
-    # 70% 1 job, 30% multiple (weighted selection)
-    sample_probs = np.ones(len(cust_ids))
-    repeat_indices = RNG.choice(len(cust_ids), size=int(0.30 * len(cust_ids)), replace=False)
+    sample_probs = np.ones(n_customers)
+    repeat_indices = RNG.choice(n_customers, size=int(0.30 * n_customers), replace=False)
     sample_probs[repeat_indices] = 4.0
     sample_probs /= sample_probs.sum()
 
-    start_ts = pd.Timestamp(DATA_START).timestamp()
-    end_ts = pd.Timestamp(DATA_END).timestamp()
+    lead_cust_idxs = RNG.choice(n_customers, size=total_target_leads, p=sample_probs)
 
-    lead_id_ctr = 1
-    job_id_ctr = 1
+    start_epoch = int(pd.Timestamp("2024-01-01").timestamp())
+    end_epoch = int(pd.Timestamp("2025-12-31 23:59:59").timestamp())
+    lead_epochs = RNG.integers(start_epoch, end_epoch, size=total_target_leads)
 
-    for _ in range(total_target_leads):
-        cid = RNG.choice(cust_ids, p=sample_probs)
-        cust = cust_dict[cid]
+    lead_channels = RNG.choice(CHANNELS, size=total_target_leads, p=[0.30, 0.20, 0.20, 0.20, 0.10])
+    lead_resps = np.clip(RNG.lognormal(mean=np.log(30), sigma=0.8, size=total_target_leads), 2, 300).astype(int)
+    lead_quote_ratios = np.clip(RNG.normal(1.10, 0.20, size=total_target_leads), 0.70, 1.80)
+    lead_rand_app = RNG.random(size=total_target_leads)
+    lead_norm_urg = RNG.normal(0, 0.3, size=total_target_leads)
+    lead_bern_book = RNG.random(size=total_target_leads)
 
-        ts = RNG.uniform(start_ts, end_ts)
-        lead_dt = pd.to_datetime(ts, unit="s")
-        month = lead_dt.month
+    fault_base_prob = {"wiring": 0.16, "mcb": 0.18, "ac": 0.17, "geyser": 0.12, "fan": 0.13, "inverter": 0.10, "light": 0.14}
+    channel_mults = {"google_ads": 0.9, "referral": 1.2, "website": 1.0, "whatsapp": 1.1, "walk_in": 1.3}
+    base_urg_map = {"wiring": 2.0, "mcb": 1.2, "ac": 0.8, "geyser": 1.0, "fan": 0.3, "inverter": 0.8, "light": 0.2}
+    app_map = {
+        "ac": "ac", "geyser": "geyser", "fan": "fan_cooler",
+        "inverter": "inverter_ups", "mcb": "switchboard",
+        "wiring": "switchboard", "light": "lights_switches"
+    }
 
-        # Month seasonal shifts
+    month_fault_probs = {}
+    for m in range(1, 13):
         f_probs = fault_base_prob.copy()
-        if 4 <= month <= 6:
+        if 4 <= m <= 6:
             f_probs["ac"] *= 2.2
             f_probs["fan"] *= 2.2
-        elif month in [12, 1, 2]:
+        elif m in [12, 1, 2]:
             f_probs["geyser"] *= 2.0
-        elif 7 <= month <= 9:
+        elif 7 <= m <= 9:
             f_probs["wiring"] *= 1.6
             f_probs["mcb"] *= 1.6
+        tot = sum(f_probs.values())
+        keys = list(f_probs.keys())
+        probs = [f_probs[k] / tot for k in keys]
+        month_fault_probs[m] = (keys, probs)
 
-        f_total = sum(f_probs.values())
-        f_keys = list(f_probs.keys())
-        f_p = [f_probs[k] / f_total for k in f_keys]
-        fault = RNG.choice(f_keys, p=f_p)
+    lead_rows = []
+    job_rows = []
+    job_id_ctr = 1
 
-        # Appliance
-        rand_val = RNG.random()
-        if rand_val < 0.15:
+    for i in range(total_target_leads):
+        c_idx = lead_cust_idxs[i]
+        cust = cust_data[c_idx]
+
+        dt = datetime.datetime.fromtimestamp(int(lead_epochs[i]), tz=datetime.timezone.utc)
+        m = dt.month
+
+        f_keys, f_probs = month_fault_probs[m]
+        fault = RNG.choice(f_keys, p=f_probs)
+
+        rapp = lead_rand_app[i]
+        if rapp < 0.15:
             appliance = "unknown"
-        elif rand_val < 0.20:
-            appliance = RNG.choice(APPLIANCES)
+        elif rapp < 0.20:
+            appliance = APPLIANCES[RNG.integers(0, len(APPLIANCES))]
         else:
-            mapping = {
-                "ac": "ac", "geyser": "geyser", "fan": "fan_cooler",
-                "inverter": "inverter_ups", "mcb": "switchboard",
-                "wiring": "switchboard", "light": "lights_switches"
-            }
-            appliance = mapping[fault]
+            appliance = app_map[fault]
 
-        # Complaint text
-        base_tmpl = RNG.choice(COMPLAINT_TEMPLATES[fault])
-        complaint = inject_typo(base_tmpl)
-        lower_comp = complaint.lower()
-
-        # Urgency score calculation
-        base_urg = {"wiring": 2.0, "mcb": 1.2, "ac": 0.8, "geyser": 1.0, "fan": 0.3, "inverter": 0.8, "light": 0.2}[fault]
-        danger_count = sum(1 for w in DANGER_WORDS if w in lower_comp)
-        power_loss = 1 if any(w in lower_comp for w in POWER_LOSS_WORDS) else 0
-        mild_only = 1 if (any(w in lower_comp for w in MILD_WORDS) and danger_count == 0 and power_loss == 0) else 0
+        tmpl_idx = RNG.integers(0, len(TEMPLATE_METADATA[fault]))
+        base_text, d_cnt, p_loss, m_only = TEMPLATE_METADATA[fault][tmpl_idx]
+        complaint = fast_inject_typo(base_text, RNG)
 
         urg_score = (
-            base_urg +
-            1.5 * danger_count +
+            base_urg_map[fault] +
+            1.5 * d_cnt +
             (0.5 if cust["premises_type"] == "shop_office" else 0.0) +
-            (0.5 * power_loss) -
-            (0.8 * mild_only) +
-            RNG.normal(0, 0.3)
+            (0.5 * p_loss) -
+            (0.8 * m_only) +
+            lead_norm_urg[i]
         )
-        if urg_score >= 2.5:
-            urgency = "high"
-        elif urg_score >= 1.0:
-            urgency = "medium"
-        else:
-            urgency = "low"
+        urgency = "high" if urg_score >= 2.5 else ("medium" if urg_score >= 1.0 else "low")
 
-        # Channel & Booking
-        channel = RNG.choice(CHANNELS, p=channel_probs)
-        resp_time = int(np.clip(RNG.lognormal(mean=np.log(30), sigma=0.8), 2, 300))
+        channel = lead_channels[i]
+        resp_time = int(lead_resps[i])
         resp_f = 0.6 + 0.4 * np.exp(-resp_time / 70.0)
 
         base_rate = rate_card_lookup[(fault, cust["premises_type"])]
         typical_p = float(base_rate * (1.12 if urgency == "high" else 1.0))
-        quote_ratio = float(np.clip(RNG.normal(1.10, 0.20), 0.70, 1.80))
-        quoted_p = round(typical_p * quote_ratio, 2)
+        q_ratio = float(lead_quote_ratios[i])
+        quoted_p = round(typical_p * q_ratio, 2)
 
         k = 4.2 if urgency == "high" else 6.0
-        p_book = float(np.clip(
-            (channel_mults[channel] * resp_f) / (1.0 + np.exp(k * (quote_ratio - 1.08))),
+        p_book = np.clip(
+            (channel_mults[channel] * resp_f) / (1.0 + np.exp(k * (q_ratio - 1.08))),
             0.0, 1.0
-        ))
-        booked = int(RNG.binomial(1, p_book))
+        )
+        booked = 1 if lead_bern_book[i] < p_book else 0
 
-        lid = f"L-{lead_id_ctr:06d}"
-        lead_id_ctr += 1
+        lid = f"L-{i+1:06d}"
+        lead_dt_str = dt.strftime("%Y-%m-%d %H:%M:%S")
 
         lead_rows.append({
             "lead_id": lid,
-            "created_at": lead_dt.strftime("%Y-%m-%d %H:%M:%S"),
-            "customer_id": cid,
+            "created_at": lead_dt_str,
+            "customer_id": cust["customer_id"],
             "branch_id": cust["branch_id"],
             "source_channel": channel,
             "complaint_text": complaint,
@@ -483,52 +439,44 @@ def generate_all():
             jid = f"J-{job_id_ctr:06d}"
             job_id_ctr += 1
 
-            day_lag = int(RNG.integers(0, 2) if urgency == "high" else RNG.integers(0, 4))
-            j_date = lead_dt + pd.Timedelta(days=day_lag)
-            if j_date > pd.Timestamp(DATA_END):
-                j_date = pd.Timestamp(DATA_END)
+            day_lag = RNG.integers(0, 2) if urgency == "high" else RNG.integers(0, 4)
+            j_dt = dt + datetime.timedelta(days=int(day_lag))
+            j_date_str = min(j_dt.strftime("%Y-%m-%d"), DATA_END)
 
-            tech = RNG.choice(branch_techs[cust["branch_id"]])
+            tech = branch_techs[cust["branch_id"]][RNG.integers(0, len(branch_techs[cust["branch_id"]]))]
             t_exp = tech_exp_map[tech]
 
-            # House age factor
             h_age = 18 if np.isnan(cust["house_age_years"]) else cust["house_age_years"]
             age_f = 1.0 + 0.012 * max(0.0, float(h_age - 10))
             exp_f = 1.2 - 0.035 * min(float(t_exp), 10.0)
             prem_f = premises_factor[cust["premises_type"]]
 
-            dur = (
-                base_hours[fault] * age_f * exp_f * prem_f *
-                float(RNG.lognormal(0.0, 0.15))
-            )
+            dur = base_hours[fault] * age_f * exp_f * prem_f * float(RNG.lognormal(0.0, 0.15))
             if RNG.random() < 0.01:
                 dur *= 3.0
             dur = round(float(dur), 2)
 
-            # Parts used
             assigned_parts = []
-            for p_name, p_prob in FAULT_PART_PROBS[fault].items():
+            for p_name, p_prob in FAULT_PART_PROBS[fault]:
                 if RNG.random() < p_prob:
                     assigned_parts.append(p_name)
             parts_str = "|".join(assigned_parts)
             n_parts = len(assigned_parts)
             parts_cost = sum(PART_UNIT_PRICES[p] for p in assigned_parts)
-
             j_cost = round(380.0 * dur + parts_cost + 199.0, 2)
 
-            # Repeat probability
             p_rep = 0.04 + (0.10 if t_exp < 3 else 0.0) + (0.05 if n_parts >= 3 else 0.0)
-            rep_visit = int(RNG.binomial(1, np.clip(p_rep, 0.0, 1.0)))
+            rep_visit = 1 if RNG.random() < p_rep else 0
 
             job_rows.append({
                 "job_id": jid,
                 "lead_id": lid,
-                "customer_id": cid,
+                "customer_id": cust["customer_id"],
                 "tech_id": tech,
                 "branch_id": cust["branch_id"],
-                "job_date": j_date.strftime("%Y-%m-%d"),
-                "created_hour": lead_dt.hour,
-                "day_of_week": lead_dt.weekday(),
+                "job_date": j_date_str,
+                "created_hour": dt.hour,
+                "day_of_week": dt.weekday(),
                 "complaint_text": complaint,
                 "appliance_type": appliance,
                 "premises_type": cust["premises_type"],
@@ -549,100 +497,15 @@ def generate_all():
     jobs_df = pd.DataFrame(job_rows)
     jobs_df.sort_values("job_id").to_csv(OUT_DIR / "jobs.csv", index=False)
 
-    # 8. SHA-256 Checksums
+    # 7. Checksums
     checksum_lines = []
-    csv_names = ["branches", "technicians", "customers", "rate_card", "leads", "jobs", "weather"]
-    for name in csv_names:
+    for name in ["branches", "technicians", "customers", "rate_card", "leads", "jobs", "weather"]:
         p = OUT_DIR / f"{name}.csv"
         sha = hashlib.sha256(p.read_bytes()).hexdigest()
         checksum_lines.append(f"{sha}  {name}.csv")
 
     (OUT_DIR / "CHECKSUMS.sha256").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
-
-    # 9. Data Dictionary
-    data_dict_content = """# Voltline Data Dictionary (v1.0)
-
-### branches.csv
-- `branch_id`: Primary key (NCR, PUN, JAI).
-- `city`: Operating city hub.
-- `n_technicians`: Number of full-time electrical field technicians.
-
-### technicians.csv
-- `tech_id`: Primary key (`T-xxx`).
-- `branch_id`: Foreign key -> branches.
-- `experience_years`: Technician total experience (1-15).
-- `skill_level`: Competency tier (1=junior, 2=standard, 3=expert).
-
-### customers.csv
-- `customer_id`: Primary key (`C-xxxxx`).
-- `branch_id`: Operating branch.
-- `premises_type`: Property category (apartment, house, shop_office).
-- `house_age_years`: Structure age (0-50, ~2% missing as NaN).
-- `signup_date`: Date registered.
-
-### rate_card.csv
-- `fault_category`: Primary electrical defect category.
-- `premises_type`: Property category.
-- `base_price_inr`: Standard baseline charge before urgency markup.
-
-### leads.csv
-- `lead_id`: Primary key (`L-xxxxxx`).
-- `created_at`: Inquiry timestamp.
-- `customer_id`: Foreign key -> customers.
-- `branch_id`: Foreign key -> branches.
-- `source_channel`: Channel (google_ads, referral, website, whatsapp, walk_in).
-- `complaint_text`: Raw inquiry text in English/Hinglish with realistic typos.
-- `appliance_type`: Stated device category or 'unknown'.
-- `premises_type`: Property structure category.
-- `house_age_years`: Structure age in years.
-- `fault_category`: True electrical domain fault.
-- `urgency`: Dispatch severity rating (low, medium, high).
-- `response_time_min`: First response latency in minutes.
-- `typical_price`: Market reference rate.
-- `quoted_price`: Proposed customer charge.
-- `quote_ratio`: quoted_price / typical_price.
-- `booked`: Lead conversion flag (1 = converted to job, 0 = lost).
-
-### jobs.csv
-- `job_id`: Primary key (`J-xxxxxx`). One job per booked lead.
-- `lead_id`: Originating lead ID.
-- `customer_id`: Foreign key -> customers.
-- `tech_id`: Assigned technician ID.
-- `branch_id`: Branch ID.
-- `job_date`: Service execution date.
-- `created_hour`: Time of lead creation (0-23).
-- `day_of_week`: Day index (0 = Monday).
-- `complaint_text`: Inquiry text.
-- `appliance_type`, `premises_type`, `house_age_years`, `fault_category`, `urgency`: Synced from lead.
-- `parts_used`: Pipe-delimited list of replaced parts.
-- `n_parts`: Total parts replaced.
-- `duration_hours`: On-site execution time.
-- `job_cost_inr`: Cost of delivery: ₹380/hr + parts sum + ₹199 base.
-- `final_price_inr`: Billed revenue (matches quoted_price).
-- `repeat_visit`: Service call-back flag within 30 days (0 or 1).
-
-### weather.csv
-- `date`: Calendar date.
-- `branch_id`: City code.
-- `temp_c`: Average daily ambient temperature.
-- `rain_mm`: Precipitation in millimeters.
-- `festival_flag`: 1 if within +/- 1 day of a major festive season.
-
-### Fixed Part Unit Prices (INR)
-| Part | Price | Part | Price |
-|---|---|---|---|
-| copper_wire | 420 | thermostat | 350 |
-| connectors_tape | 90 | heating_element | 700 |
-| switch_socket | 180 | geyser_plug | 150 |
-| mcb | 380 | fan_capacitor | 60 |
-| rccb | 1100 | regulator | 220 |
-| cable_lugs | 60 | bearing_set | 180 |
-| run_capacitor | 520 | battery_terminal | 200 |
-| contactor | 650 | fuse | 50 |
-| isolator | 300 | led_driver | 250 |
-"""
-    (OUT_DIR / "data_dictionary.md").write_text(data_dict_content, encoding="utf-8")
-    print(f"Dataset generated successfully:\n - Jobs: {len(jobs_df):,}\n - Leads: {len(leads_df):,}\n - Customers: {len(customers_df):,}")
+    print(f"Data generation complete: {len(jobs_df):,} jobs, {len(leads_df):,} leads.")
 
 
 if __name__ == "__main__":
