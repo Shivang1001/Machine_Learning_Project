@@ -1,0 +1,87 @@
+{
+  "module": "M1",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "models": [
+    {
+      "name": "fault_logreg",
+      "task": "fault_classification",
+      "primary_metric": {
+        "name": "macro_f1",
+        "value": 1.0
+      },
+      "metrics": {
+        "accuracy": 1.0
+      },
+      "baseline": {
+        "name": "linear_svc",
+        "metrics": {
+          "macro_f1": 1.0
+        }
+      },
+      "n_train": 48418,
+      "n_val": 8269,
+      "n_test": 8313,
+      "features": [
+        "complaint_text"
+      ],
+      "best_params": {
+        "C": 0.5
+      }
+    },
+    {
+      "name": "urgency_logreg",
+      "task": "urgency_classification",
+      "primary_metric": {
+        "name": "recall_high",
+        "value": 0.9358
+      },
+      "metrics": {
+        "macro_f1": 0.8354
+      },
+      "baseline": {
+        "name": "val_recall",
+        "metrics": {
+          "recall_high": 0.953
+        }
+      },
+      "n_train": 48418,
+      "n_val": 8269,
+      "n_test": 8313,
+      "features": [
+        "complaint_text",
+        "appliance_type",
+        "premises_type",
+        "house_age_years",
+        "created_hour"
+      ],
+      "best_params": {}
+    },
+    {
+      "name": "parts_ovr_logreg",
+      "task": "parts_prediction",
+      "primary_metric": {
+        "name": "micro_f1",
+        "value": 0.6389
+      },
+      "metrics": {
+        "hamming_loss": 0.0899
+      },
+      "baseline": {
+        "name": "random_guess",
+        "metrics": {
+          "hamming_loss": 0.25
+        }
+      },
+      "n_train": 20692,
+      "n_val": 3628,
+      "n_test": 3604,
+      "features": [
+        "complaint_text",
+        "predicted_fault"
+      ],
+      "best_params": {}
+    }
+  ],
+  "notes": "Models were trained using ground-truth fault_category on training data. At inference time, predicted fault is passed downstream to the parts estimator as required by the pipeline contract."
+}
