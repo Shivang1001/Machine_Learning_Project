@@ -68,6 +68,7 @@ def predict_triage(
     cleaned = clean_text(text)
     input_df = pd.DataFrame([{
         "complaint_text": cleaned,
+        "complaint_clean": cleaned,
         "appliance_type": appliance_type,
         "premises_type": premises_type,
         "house_age_years": float(house_age_years) if house_age_years is not None else np.nan,
