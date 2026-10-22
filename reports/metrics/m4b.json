@@ -1,0 +1,46 @@
+{
+  "module": "M4B",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "models": [
+    {
+      "name": "random_forest",
+      "task": "weekly_demand_forecast",
+      "primary_metric": {
+        "name": "mae",
+        "value": 7.6604
+      },
+      "metrics": {
+        "mae": 7.6604,
+        "mape": 0.0842,
+        "improvement_over_naive": -0.09
+      },
+      "baseline": {
+        "name": "naive_last_week",
+        "metrics": {
+          "mae": 7.0278,
+          "mape": 0.0882
+        }
+      },
+      "n_train": 228,
+      "n_val": 36,
+      "n_test": 36,
+      "features": [
+        "lag_1",
+        "lag_2",
+        "lag_4",
+        "roll4_mean",
+        "month",
+        "week_of_year",
+        "festival_flag",
+        "temp_mean",
+        "rain_sum",
+        "branch_NCR",
+        "branch_PUN",
+        "branch_JAI"
+      ],
+      "best_params": {}
+    }
+  ],
+  "notes": "Chosen on validation MAE (random_forest 7.4626, lgbm 8.0099, naive 8.7778); TimeSeriesSplit(5) CV MAE on train: {'random_forest': 7.9978, 'lgbm': 9.9756}. Refit on train+val. Test metrics use true lags and the week's own weather (one-step-ahead); the 4-week forecast is recursive and uses last year's same-week weather, so real multi-week error is higher. improvement_over_naive is the fractional MAE reduction versus last week's count."
+}

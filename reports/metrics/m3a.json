@@ -1,0 +1,43 @@
+{
+  "module": "M3A",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "models": [
+    {
+      "name": "logreg",
+      "task": "lead_conversion_scoring",
+      "primary_metric": {
+        "name": "roc_auc",
+        "value": 0.75
+      },
+      "metrics": {
+        "roc_auc": 0.75,
+        "pr_auc": 0.6953,
+        "brier": 0.1996
+      },
+      "baseline": {
+        "name": "logreg",
+        "metrics": {
+          "cv_roc_auc": 0.7499,
+          "val_roc_auc": 0.7466
+        }
+      },
+      "n_train": 48418,
+      "n_val": 8269,
+      "n_test": 8313,
+      "features": [
+        "source_channel",
+        "appliance_type",
+        "premises_type",
+        "urgency",
+        "branch_id",
+        "response_time_min",
+        "hour",
+        "day_of_week",
+        "quote_ratio"
+      ],
+      "best_params": {}
+    }
+  ],
+  "notes": "Calibrated classifier trained on lead features excluding downstream job parameters."
+}
