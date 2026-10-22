@@ -1,0 +1,24 @@
+{
+  "module": "M5",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "impact_summary": {
+    "repeat_rate_baseline": 0.0591,
+    "repeat_rate_ml": 0.0402,
+    "parts_coverage_rate": 0.88,
+    "profit_per_lead_baseline": 293.33,
+    "profit_per_lead_ml": 429.27,
+    "profit_lift_pct": 46.34,
+    "top30_conv_random": 1038,
+    "top30_conv_ml": 1765,
+    "top30_conv_lift_pct": 70.04,
+    "tech_weeks_mismatch_baseline": 12,
+    "tech_weeks_mismatch_ml": 4
+  },
+  "assumptions": [
+    "Repeat visits: Estimated using analytical van parts coverage models.",
+    "Quote optimisation: Compared flat Cost x 1.30 against M3B grid-optimised pricing.",
+    "Lead scoring: Ranked test leads by calibrated conversion probability.",
+    "Staffing mismatch: Weekly technician shortages/surpluses compared against constant H1 staffing."
+  ]
+}
