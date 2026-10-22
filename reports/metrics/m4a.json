@@ -1,0 +1,102 @@
+{
+  "module": "M4A",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "models": [
+    {
+      "name": "segments_kmeans",
+      "task": "customer_segmentation",
+      "primary_metric": {
+        "name": "silhouette",
+        "value": 0.4198
+      },
+      "metrics": {
+        "silhouette": 0.4198
+      },
+      "baseline": {
+        "name": "none",
+        "metrics": {}
+      },
+      "n_train": 10667,
+      "n_val": 0,
+      "n_test": 0,
+      "features": [
+        "recency_days",
+        "frequency",
+        "monetary"
+      ],
+      "best_params": {
+        "n_clusters": 4,
+        "inertia_by_k": {
+          "2": 15913.6555,
+          "3": 12007.6069,
+          "4": 8876.3991,
+          "5": 7348.3725,
+          "6": 6251.2573,
+          "7": 5464.785,
+          "8": 4760.241
+        },
+        "silhouette_by_k": {
+          "2": 0.4506,
+          "3": 0.4037,
+          "4": 0.4198,
+          "5": 0.4024,
+          "6": 0.3618,
+          "7": 0.3649,
+          "8": 0.3746
+        },
+        "cluster_sizes": {
+          "at_risk": 4653,
+          "regular_seasonal": 2941,
+          "loyal_high_value": 1792,
+          "new_one_time": 1281
+        },
+        "name_map": {
+          "0": "loyal_high_value",
+          "3": "at_risk",
+          "1": "new_one_time",
+          "2": "regular_seasonal"
+        }
+      }
+    },
+    {
+      "name": "repeat_logreg",
+      "task": "repeat_6m_classification",
+      "primary_metric": {
+        "name": "roc_auc",
+        "value": 0.621
+      },
+      "metrics": {
+        "roc_auc": 0.621,
+        "pr_auc": 0.4729
+      },
+      "baseline": {
+        "name": "repeat_lgbm",
+        "metrics": {
+          "roc_auc": 0.583,
+          "pr_auc": 0.4353
+        }
+      },
+      "n_train": 8567,
+      "n_val": 0,
+      "n_test": 10667,
+      "features": [
+        "recency_days",
+        "frequency",
+        "monetary",
+        "avg_gap_days",
+        "last_fault_category",
+        "premises_type",
+        "house_age_years",
+        "segment"
+      ],
+      "best_params": {
+        "cv_roc_auc_train": {
+          "logreg": 0.5931,
+          "lgbm": 0.547
+        }
+      }
+    }
+  ],
+  "notes": "Repeat model trained on snapshot 2024-12-31, tested once on snapshot 2025-06-30; model chosen by 5-fold stratified CV ROC-AUC on the train snapshot (no validation split exists for M4A). KMeans is fitted on the 2025-06-30 snapshot as the contract requires, so its centroids use jobs from the train target window (mild leakage, labels not used). Segments are computed from true job history, so there is no ground-truth-versus-predicted mismatch. Silhouette uses a 5000-row sample (random_state 42)."
+}
