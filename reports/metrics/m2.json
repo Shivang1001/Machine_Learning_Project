@@ -1,0 +1,79 @@
+{
+  "module": "M2",
+  "contract_version": "1.0",
+  "random_state": 42,
+  "models": [
+    {
+      "name": "duration_lgbm",
+      "task": "duration_regression",
+      "primary_metric": {
+        "name": "mae",
+        "value": 0.2901
+      },
+      "metrics": {
+        "rmse": 0.5227,
+        "r2": 0.6642
+      },
+      "baseline": {
+        "name": "ridge",
+        "metrics": {
+          "mae": 0.2971
+        }
+      },
+      "n_train": 20692,
+      "n_val": 3628,
+      "n_test": 3604,
+      "features": [
+        "fault_category",
+        "appliance_type",
+        "premises_type",
+        "urgency",
+        "branch_id",
+        "house_age_years",
+        "experience_years",
+        "skill_level",
+        "month"
+      ],
+      "best_params": {
+        "model": "lgbm"
+      }
+    },
+    {
+      "name": "cost_ridge",
+      "task": "cost_regression",
+      "primary_metric": {
+        "name": "mae",
+        "value": 281.7266
+      },
+      "metrics": {
+        "rmse": 393.6698,
+        "r2": 0.5249
+      },
+      "baseline": {
+        "name": "ridge",
+        "metrics": {
+          "mae": 281.7266
+        }
+      },
+      "n_train": 20692,
+      "n_val": 3628,
+      "n_test": 3604,
+      "features": [
+        "fault_category",
+        "appliance_type",
+        "premises_type",
+        "urgency",
+        "branch_id",
+        "house_age_years",
+        "experience_years",
+        "skill_level",
+        "month"
+      ],
+      "best_params": {
+        "model": "ridge",
+        "target_transform": "log1p"
+      }
+    }
+  ],
+  "notes": "M2 models train on ground-truth fault_category and urgency from historical jobs."
+}
