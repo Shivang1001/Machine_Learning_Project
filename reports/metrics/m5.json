@@ -69,15 +69,15 @@
     "profit_per_lead_ml": 429.27,
     "profit_lift_pct": 46.34,
     "top30_conv_random": 1070,
-    "top30_conv_ml": 1765,
-    "top30_conv_lift_pct": 64.95,
+    "top30_conv_ml": 1753,
+    "top30_conv_lift_pct": 63.83,
     "tech_weeks_mismatch_baseline": 22,
     "tech_weeks_mismatch_ml": 18
   },
   "assumptions": [
     "Repeat visits: Loaded trained M1 fault & parts pipelines. Jobs where all true parts_used fall within the predicted top-6 van kit avoid part-shortage repeat visits (38% of total repeats attributed to missing van parts).",
     "Quote optimisation: Evaluated across all held-out test leads comparing flat Cost x 1.30 against M3B grid-optimised pricing over [1.0x, 2.6x] cost.",
-    "Lead scoring: Ranked test leads by calibrated conversion probability formula (models/m3a_lead.joblib not yet present).",
+    "Lead scoring: Ranked test leads using trained models/m3a_lead.joblib.",
     "Staffing mismatch: Sum of absolute weekly technician shortages and idle surpluses across the 12 test weeks (starting 2025-10-06) across all 3 branches compared against constant 2025 H1 average staffing."
   ],
   "notes": "End-to-end business impact simulation evaluated on the Q4 2025 test split (after 2025-09-30) comparing ML-assisted triage, dynamic quoting, lead prioritization, and demand staffing against static franchise heuristics."
